@@ -26,7 +26,7 @@ python role_generate.py
 
 
 2. 生成医患之间的多轮对话
-LLM选择：支持gpt-4o、豆包doubao-character-pro-32k、MiniMax-M2.7等多种LLM生成对话
+LLM选择：支持gpt-4o、豆包doubao-character-pro-32k、MiniMax-M3等多种LLM生成对话
 ```bash
 # 使用OpenAI GPT-4o
 python roleplay_data_generate_gpt4.py
@@ -39,7 +39,7 @@ export MINIMAX_API_KEY="your_api_key"
 python roleplay_data_generate_minimax.py
 
 # MiniMax支持自定义参数
-python roleplay_data_generate_minimax.py --model MiniMax-M2.5-highspeed --total 500 --rounds 8
+python roleplay_data_generate_minimax.py --model MiniMax-M2.7 --total 500 --rounds 8
 ```
 
 ### 多Provider支持
@@ -50,7 +50,7 @@ python roleplay_data_generate_minimax.py --model MiniMax-M2.5-highspeed --total 
 |----------|---------|---------|---------|
 | OpenAI | `OPENAI_API_KEY` | gpt-4o | https://api.openai.com/v1 |
 | 豆包 | `DOUBAO_API_KEY` | doubao-character-pro-32k | https://ark.cn-beijing.volces.com/api/v3 |
-| MiniMax | `MINIMAX_API_KEY` | MiniMax-M2.7 | https://api.minimax.io/v1 |
+| MiniMax | `MINIMAX_API_KEY` | MiniMax-M3 | https://api.minimax.io/v1 |
 
 ```python
 from llm_client import create_llm_client

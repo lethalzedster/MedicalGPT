@@ -3,14 +3,14 @@
 @description: Generate medical roleplay dialogue training data using MiniMax API.
 
 MiniMax provides an OpenAI-compatible API at https://api.minimax.io/v1
-with models like MiniMax-M2.7 (1M context) and MiniMax-M2.5-highspeed (204K context).
+with models like MiniMax-M3 (latest) and MiniMax-M2.7 (1M context).
 
 Usage:
     export MINIMAX_API_KEY="your_api_key"
     python roleplay_data_generate_minimax.py
 
     # Or specify a different model
-    python roleplay_data_generate_minimax.py --model MiniMax-M2.5-highspeed
+    python roleplay_data_generate_minimax.py --model MiniMax-M2.7
 
 For an API key, visit: https://platform.minimaxi.com/
 """
@@ -42,7 +42,7 @@ def generate(client, model, prompt, system_prompt=''):
 def main():
     parser = argparse.ArgumentParser(description="Generate roleplay data with MiniMax")
     parser.add_argument("--model", type=str, default=None,
-                        help="MiniMax model to use (default: MiniMax-M2.7)")
+                        help="MiniMax model to use (default: MiniMax-M3)")
     parser.add_argument("--total", type=int, default=1000,
                         help="Number of conversations to generate")
     parser.add_argument("--output", type=str, default="roleplay_train_data_minimax.jsonl",
