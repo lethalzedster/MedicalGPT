@@ -1,0 +1,31 @@
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 training/dpo_training.py \
+    --model_name_or_path outputs-finalign-sft-qwen25-7b \
+    --train_file_dir ./data/finance_reward/train \
+    --validation_file_dir ./data/finance_reward/validation \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 8 \
+    --per_device_eval_batch_size 1 \
+    --do_train \
+    --do_eval \
+    --use_peft True \
+    --qlora True \
+    --load_in_4bit True \
+    --max_train_samples -1 \
+    --max_eval_samples 500 \
+    --max_steps 1000 \
+    --eval_steps 100 \
+    --save_steps 250 \
+    --max_source_length 1536 \
+    --max_target_length 512 \
+    --output_dir outputs-finalign-dpo-qwen25-7b \
+    --target_modules all \
+    --lora_rank 16 \
+    --lora_alpha 32 \
+    --lora_dropout 0.05 \
+    --torch_dtype bfloat16 \
+    --bf16 True \
+    --fp16 False \
+    --report_to tensorboard \
+    --remove_unused_columns False \
+    --gradient_checkpointing True \
+    --cache_dir ./cache
