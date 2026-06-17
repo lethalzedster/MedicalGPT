@@ -46,6 +46,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_dpo_samples", type=int, default=50000)
     parser.add_argument("--max_eval_samples", type=int, default=30000)
     parser.add_argument("--max_per_source", type=int, default=120000)
+    parser.add_argument(
+        "--scan_limit_per_source",
+        type=int,
+        default=0,
+        help="Maximum raw records scanned per source. 0 means no scan limit.",
+    )
     parser.add_argument("--min_prompt_chars", type=int, default=4)
     parser.add_argument("--min_answer_chars", type=int, default=4)
     parser.add_argument("--max_prompt_chars", type=int, default=12000)
@@ -364,6 +370,8 @@ def main() -> None:
     kept_by_source: Dict[str, Counter[str]] = defaultdict(Counter)
 
     for source, record in iter_records(raw_dir):
+        if args.scan_limit_per_source > 0 and scanned_by_source[source] >= args.scan_limit_per_source:
+            continue
         scanned_by_source[source] += 1
         sft = to_sft(record)
         if sft and valid_sft(sft, args):
