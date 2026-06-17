@@ -23,16 +23,18 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import random
 import re
+import zipfile
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 
 SYSTEM_PROMPT = "你是一个专业、谨慎的金融助手。回答仅供学习和研究参考，不构成投资建议。"
-RAW_EXTENSIONS = {".jsonl", ".json", ".csv", ".parquet"}
+RAW_EXTENSIONS = {".jsonl", ".json", ".csv", ".parquet", ".zip"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,8 +73,12 @@ def read_jsonl(path: Path) -> Iterator[Dict[str, Any]]:
 
 
 def read_json(path: Path) -> Iterator[Dict[str, Any]]:
-    with path.open("r", encoding="utf-8") as f:
-        obj = json.load(f)
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            obj = json.load(f)
+    except json.JSONDecodeError:
+        yield from read_jsonl(path)
+        return
     if isinstance(obj, list):
         for item in obj:
             if isinstance(item, dict):
@@ -95,6 +101,37 @@ def read_csv(path: Path) -> Iterator[Dict[str, Any]]:
             yield dict(row)
 
 
+def read_zip(path: Path) -> Iterator[Dict[str, Any]]:
+    with zipfile.ZipFile(path) as zf:
+        for name in sorted(zf.namelist()):
+            suffix = Path(name).suffix.lower()
+            if suffix not in {".csv", ".json", ".jsonl"}:
+                continue
+            with zf.open(name) as raw:
+                text = io.TextIOWrapper(raw, encoding="utf-8-sig")
+                if suffix == ".csv":
+                    reader = csv.DictReader(text)
+                    for row in reader:
+                        item = dict(row)
+                        item["_zip_member"] = name
+                        yield item
+                elif suffix == ".jsonl":
+                    for line in text:
+                        line = line.strip()
+                        if line:
+                            item = json.loads(line)
+                            if isinstance(item, dict):
+                                item["_zip_member"] = name
+                                yield item
+                else:
+                    obj = json.load(text)
+                    if isinstance(obj, list):
+                        for item in obj:
+                            if isinstance(item, dict):
+                                item["_zip_member"] = name
+                                yield item
+
+
 def read_with_datasets(path: Path) -> Iterator[Dict[str, Any]]:
     try:
         from datasets import load_dataset
@@ -109,8 +146,41 @@ def read_with_datasets(path: Path) -> Iterator[Dict[str, Any]]:
         yield dict(row)
 
 
+def iter_saved_dataset_dirs(raw_dir: Path) -> Iterator[Tuple[str, Dict[str, Any]]]:
+    try:
+        from datasets import DatasetDict, load_from_disk
+    except ImportError:
+        return
+
+    for marker in raw_dir.rglob("dataset_dict.json"):
+        if ".cache" in marker.parts:
+            continue
+        dataset_dir = marker.parent
+        source = source_name(dataset_dir, raw_dir)
+        try:
+            dataset = load_from_disk(str(dataset_dir))
+        except Exception as exc:
+            print(f"[warn] skip saved dataset {dataset_dir}: {exc}")
+            continue
+        if isinstance(dataset, DatasetDict):
+            for split_name, split in dataset.items():
+                for row in split:
+                    item = dict(row)
+                    item["_split"] = split_name
+                    yield source, item
+        else:
+            for row in dataset:
+                yield source, dict(row)
+
+
 def iter_records(raw_dir: Path) -> Iterator[Tuple[str, Dict[str, Any]]]:
-    files = [p for p in raw_dir.rglob("*") if p.is_file() and p.suffix.lower() in RAW_EXTENSIONS]
+    yield from iter_saved_dataset_dirs(raw_dir)
+
+    files = [
+        p
+        for p in raw_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in RAW_EXTENSIONS and ".cache" not in p.parts
+    ]
     for path in sorted(files):
         source = source_name(path, raw_dir)
         try:
@@ -120,6 +190,8 @@ def iter_records(raw_dir: Path) -> Iterator[Tuple[str, Dict[str, Any]]]:
                 iterator = read_json(path)
             elif path.suffix == ".csv":
                 iterator = read_csv(path)
+            elif path.suffix == ".zip":
+                iterator = read_zip(path)
             else:
                 iterator = read_with_datasets(path)
             for record in iterator:
@@ -206,6 +278,18 @@ def to_sft(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 conversations = [{"from": "system", "value": SYSTEM_PROMPT}] + conversations
             return {"conversations": conversations}
 
+    user_text = clean_text(record.get("user"))
+    assistant_text = clean_text(record.get("assistant"))
+    if user_text and assistant_text:
+        system_text = clean_text(record.get("system")) or SYSTEM_PROMPT
+        return {
+            "conversations": [
+                {"from": "system", "value": system_text},
+                {"from": "human", "value": user_text},
+                {"from": "gpt", "value": assistant_text},
+            ]
+        }
+
     prompt = build_prompt(record)
     answer = first_nonempty(record, ("output", "answer", "response", "completion", "label"))
     if not answer and "gold" in record and "choices" in record:
@@ -255,6 +339,9 @@ def to_dpo(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def to_eval(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if clean_text(record.get("user")) and clean_text(record.get("assistant")):
+        return {"question": clean_text(record.get("user")), "answer": clean_text(record.get("assistant"))}
+
     prompt = build_prompt(record)
     if not prompt:
         return None
