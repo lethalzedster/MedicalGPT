@@ -6,6 +6,14 @@ cd "$ROOT_DIR"
 
 mkdir -p reports/finalign
 
+set +u
+source /share/home/beiyou2/miniconda3/etc/profile.d/conda.sh
+conda activate rs_grpo
+set -u
+export PYTHONNOUSERSITE=1
+
+echo "Using python: $(command -v python)"
+
 LEFT_FILE="${LEFT_FILE:-reports/finalign/sft/finqa_pred.jsonl}"
 RIGHT_FILE="${RIGHT_FILE:-reports/finalign/dpo/finqa_pred.jsonl}"
 PAIRS_FILE="${PAIRS_FILE:-reports/finalign/ab_pairs_500.jsonl}"
