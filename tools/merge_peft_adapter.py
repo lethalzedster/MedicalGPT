@@ -22,7 +22,6 @@ from transformers import (
     AutoTokenizer,
     AutoConfig,
     AutoModelForCausalLM,
-    AutoModelForConditionalGeneration,
     AutoModelForSequenceClassification,
 )
 
@@ -102,6 +101,13 @@ def main():
         archs = getattr(base_cfg, 'architectures', []) or []
         is_conditional = any('ConditionalGeneration' in a for a in archs)
         if is_conditional:
+            try:
+                from transformers import AutoModelForConditionalGeneration
+            except ImportError as exc:
+                raise ImportError(
+                    "This transformers version does not provide AutoModelForConditionalGeneration. "
+                    "Upgrade transformers or use a causal language model base checkpoint."
+                ) from exc
             print(f"Loading LoRA for conditional generation model (archs={archs})")
             base_model = AutoModelForConditionalGeneration.from_pretrained(
                 base_model_path,
