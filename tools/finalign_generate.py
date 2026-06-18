@@ -81,15 +81,16 @@ def main() -> None:
             prompt_text = row.get("prompt") or row.get("question") or ""
             prompt = build_prompt(tokenizer, prompt_text)
             inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+            generate_kwargs = {
+                "max_new_tokens": args.max_new_tokens,
+                "do_sample": do_sample,
+                "pad_token_id": tokenizer.pad_token_id,
+                "eos_token_id": tokenizer.eos_token_id,
+            }
+            if do_sample:
+                generate_kwargs["temperature"] = args.temperature
             with torch.no_grad():
-                generated = model.generate(
-                    **inputs,
-                    max_new_tokens=args.max_new_tokens,
-                    do_sample=do_sample,
-                    temperature=args.temperature if do_sample else None,
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                )
+                generated = model.generate(**inputs, **generate_kwargs)
             new_tokens = generated[0][inputs["input_ids"].shape[-1] :]
             response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
             out = dict(row)

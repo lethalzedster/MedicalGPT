@@ -16,12 +16,16 @@ OUT_DIR="${OUT_DIR:-reports/finalign/base}"
 mkdir -p "$OUT_DIR"
 
 for task in fineval finqa convfinqa sentiment; do
+  case "$task" in
+    fineval|sentiment) MAX_NEW_TOKENS="${MAX_NEW_TOKENS_CHOICE:-8}" ;;
+    *) MAX_NEW_TOKENS="${MAX_NEW_TOKENS_QA:-32}" ;;
+  esac
   python tools/finalign_generate.py \
     --model_name_or_path "$MODEL_PATH" \
     --input_file "data/finance_benchmarks/${task}/eval.jsonl" \
     --output_file "${OUT_DIR}/${task}_pred.jsonl" \
     --max_samples "$MAX_SAMPLES" \
-    --max_new_tokens 160 \
+    --max_new_tokens "$MAX_NEW_TOKENS" \
     --load_in_4bit
   python tools/finalign_eval.py \
     --prediction_file "${OUT_DIR}/${task}_pred.jsonl" \
