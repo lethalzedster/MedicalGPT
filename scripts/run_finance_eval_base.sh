@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+set +u
+source /share/home/beiyou2/miniconda3/etc/profile.d/conda.sh
+conda activate rs_grpo
+set -u
+export PYTHONNOUSERSITE=1
+
+MODEL_PATH="${MODEL_PATH:-/share/bupt/models/Qwen2.5-7B-Instruct}"
+MAX_SAMPLES="${MAX_SAMPLES:-500}"
+OUT_DIR="${OUT_DIR:-reports/finalign/base}"
+mkdir -p "$OUT_DIR"
+
+for task in fineval finqa convfinqa sentiment; do
+  python tools/finalign_generate.py \
+    --model_name_or_path "$MODEL_PATH" \
+    --input_file "data/finance_benchmarks/${task}/eval.jsonl" \
+    --output_file "${OUT_DIR}/${task}_pred.jsonl" \
+    --max_samples "$MAX_SAMPLES" \
+    --max_new_tokens 160 \
+    --load_in_4bit
+  python tools/finalign_eval.py \
+    --prediction_file "${OUT_DIR}/${task}_pred.jsonl" \
+    --output_file "${OUT_DIR}/${task}_metrics.json"
+done

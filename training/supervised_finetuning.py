@@ -396,44 +396,45 @@ def main():
     IGNORE_INDEX = LabelSmoother.ignore_index if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
 
     # Get datasets
-    if data_args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(
-            data_args.dataset_name,
-            data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-        )
-        if "validation" not in raw_datasets.keys():
-            shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
-            # Split the shuffled train dataset into training and validation sets
-            split = shuffled_train_dataset.train_test_split(
-                test_size=data_args.validation_split_percentage / 100,
-                seed=42
+    with training_args.main_process_first(desc="Dataset loading"):
+        if data_args.dataset_name is not None:
+            # Downloading and loading a dataset from the hub.
+            raw_datasets = load_dataset(
+                data_args.dataset_name,
+                data_args.dataset_config_name,
+                cache_dir=model_args.cache_dir,
             )
-            # Assign the split datasets back to raw_datasets
-            raw_datasets["train"] = split["train"]
-            raw_datasets["validation"] = split["test"]
-    else:
-        # Loading a dataset from local files.
-        data_files = {}
-        if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
-            train_data_files = glob(f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"train files: {train_data_files}")
-            data_files["train"] = train_data_files
-        if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
-            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"eval files: {eval_data_files}")
-            data_files["validation"] = eval_data_files
-        raw_datasets = load_local_json_datasets(data_files, cache_dir=model_args.cache_dir)
-        # If no validation data is there, validation_split_percentage will be used to divide the dataset.
-        if "validation" not in raw_datasets.keys():
-            shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
-            split = shuffled_train_dataset.train_test_split(
-                test_size=float(data_args.validation_split_percentage / 100),
-                seed=42
-            )
-            raw_datasets["train"] = split["train"]
-            raw_datasets["validation"] = split["test"]
+            if "validation" not in raw_datasets.keys():
+                shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
+                # Split the shuffled train dataset into training and validation sets
+                split = shuffled_train_dataset.train_test_split(
+                    test_size=data_args.validation_split_percentage / 100,
+                    seed=42
+                )
+                # Assign the split datasets back to raw_datasets
+                raw_datasets["train"] = split["train"]
+                raw_datasets["validation"] = split["test"]
+        else:
+            # Loading a dataset from local files.
+            data_files = {}
+            if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
+                train_data_files = glob(f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
+                logger.info(f"train files: {train_data_files}")
+                data_files["train"] = train_data_files
+            if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
+                eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
+                logger.info(f"eval files: {eval_data_files}")
+                data_files["validation"] = eval_data_files
+            raw_datasets = load_local_json_datasets(data_files, cache_dir=model_args.cache_dir)
+            # If no validation data is there, validation_split_percentage will be used to divide the dataset.
+            if "validation" not in raw_datasets.keys():
+                shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
+                split = shuffled_train_dataset.train_test_split(
+                    test_size=float(data_args.validation_split_percentage / 100),
+                    seed=42
+                )
+                raw_datasets["train"] = split["train"]
+                raw_datasets["validation"] = split["test"]
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets

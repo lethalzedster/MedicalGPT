@@ -8,6 +8,7 @@
     "optimizer": {
         "type": "AdamW",
         "params": {
+            "torch_adam": true,
             "lr": "auto",
             "weight_decay": "auto"
         }
