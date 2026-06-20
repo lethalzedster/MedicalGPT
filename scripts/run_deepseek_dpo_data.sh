@@ -21,6 +21,7 @@ SUMMARY_FILE="${SUMMARY_FILE:-reports/finalign/data/finalign_dpo_deepseek_summar
 MAX_PROMPTS="${MAX_PROMPTS:-12000}"
 MAX_JUDGE_SAMPLES="${MAX_JUDGE_SAMPLES:-10000}"
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-256}"
+GEN_BATCH_SIZE="${GEN_BATCH_SIZE:-4}"
 DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 DEEPSEEK_BASE_URL="${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
 
@@ -39,6 +40,8 @@ python tools/finalign_generate.py \
   --output_file "$BASE_CANDIDATE_FILE" \
   --max_samples "$MAX_PROMPTS" \
   --max_new_tokens "$MAX_NEW_TOKENS" \
+  --batch_size "$GEN_BATCH_SIZE" \
+  --resume \
   --load_in_4bit
 
 python tools/finalign_generate.py \
@@ -47,6 +50,8 @@ python tools/finalign_generate.py \
   --output_file "$SFT_CANDIDATE_FILE" \
   --max_samples "$MAX_PROMPTS" \
   --max_new_tokens "$MAX_NEW_TOKENS" \
+  --batch_size "$GEN_BATCH_SIZE" \
+  --resume \
   --load_in_4bit
 
 python tools/finalign_generate.py \
@@ -56,6 +61,8 @@ python tools/finalign_generate.py \
   --max_samples "$MAX_PROMPTS" \
   --max_new_tokens "$MAX_NEW_TOKENS" \
   --temperature 0.7 \
+  --batch_size "$GEN_BATCH_SIZE" \
+  --resume \
   --load_in_4bit
 
 python tools/deepseek_pairwise_judge.py \

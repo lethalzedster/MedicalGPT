@@ -22,6 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_samples", type=int, default=0)
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument("--load_in_4bit", action="store_true")
     return parser.parse_args()
 
@@ -42,6 +44,23 @@ def build_prompt(tokenizer: AutoTokenizer, text: str) -> str:
         return text
 
 
+def read_existing_ids(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    ids = set()
+    for row in read_jsonl(path):
+        item_id = row.get("id")
+        if item_id:
+            ids.add(str(item_id))
+    return ids
+
+
+def chunks(rows: List[Dict[str, Any]], batch_size: int) -> Iterator[List[Dict[str, Any]]]:
+    batch_size = max(batch_size, 1)
+    for start in range(0, len(rows), batch_size):
+        yield rows[start : start + batch_size]
+
+
 def main() -> None:
     args = parse_args()
     input_file = Path(args.input_file)
@@ -60,6 +79,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, trust_remote_code=True)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
     model = AutoModelForCausalLM.from_pretrained(
         args.model_name_or_path,
         torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
@@ -74,13 +94,17 @@ def main() -> None:
     rows: List[Dict[str, Any]] = list(read_jsonl(input_file))
     if args.max_samples > 0:
         rows = rows[: args.max_samples]
+    if args.resume:
+        existing_ids = read_existing_ids(output_file)
+        rows = [row for row in rows if str(row.get("id", "")) not in existing_ids]
 
     do_sample = args.temperature > 0
-    with output_file.open("w", encoding="utf-8") as f:
-        for row in tqdm(rows, desc="generate"):
-            prompt_text = row.get("prompt") or row.get("question") or ""
-            prompt = build_prompt(tokenizer, prompt_text)
-            inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    mode = "a" if args.resume else "w"
+    with output_file.open(mode, encoding="utf-8") as f:
+        for batch in tqdm(list(chunks(rows, args.batch_size)), desc="generate"):
+            prompt_texts = [row.get("prompt") or row.get("question") or "" for row in batch]
+            prompts = [build_prompt(tokenizer, prompt_text) for prompt_text in prompt_texts]
+            inputs = tokenizer(prompts, return_tensors="pt", padding=True).to(model.device)
             generate_kwargs = {
                 "max_new_tokens": args.max_new_tokens,
                 "do_sample": do_sample,
@@ -91,11 +115,14 @@ def main() -> None:
                 generate_kwargs["temperature"] = args.temperature
             with torch.no_grad():
                 generated = model.generate(**inputs, **generate_kwargs)
-            new_tokens = generated[0][inputs["input_ids"].shape[-1] :]
-            response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
-            out = dict(row)
-            out["prediction"] = response
-            f.write(json.dumps(out, ensure_ascii=False) + "\n")
+            prompt_length = inputs["input_ids"].shape[-1]
+            for row, output_ids in zip(batch, generated):
+                new_tokens = output_ids[prompt_length:]
+                response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+                out = dict(row)
+                out["prediction"] = response
+                f.write(json.dumps(out, ensure_ascii=False) + "\n")
+            f.flush()
 
 
 if __name__ == "__main__":
