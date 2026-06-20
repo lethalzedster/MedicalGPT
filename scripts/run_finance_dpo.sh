@@ -25,11 +25,16 @@ echo "Using report_to: tensorboard" | tee -a logs/fin_dpo.log
 MODEL_PATH="${MODEL_PATH:-outputs-finalign-sft-qwen25-7b-merged}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs-finalign-dpo-qwen25-7b}"
 MAX_STEPS="${MAX_STEPS:-1000}"
+REWARD_DATA_DIR="${REWARD_DATA_DIR:-./data/finance_reward}"
+TRAIN_FILE_DIR="${TRAIN_FILE_DIR:-${REWARD_DATA_DIR}/train}"
+VALIDATION_FILE_DIR="${VALIDATION_FILE_DIR:-${REWARD_DATA_DIR}/validation}"
+
+echo "Using reward data: $REWARD_DATA_DIR" | tee -a logs/fin_dpo.log
 
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 training/dpo_training.py \
     --model_name_or_path "$MODEL_PATH" \
-    --train_file_dir ./data/finance_reward/train \
-    --validation_file_dir ./data/finance_reward/validation \
+    --train_file_dir "$TRAIN_FILE_DIR" \
+    --validation_file_dir "$VALIDATION_FILE_DIR" \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 8 \
     --per_device_eval_batch_size 1 \
